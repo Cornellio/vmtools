@@ -120,6 +120,7 @@ def process_args():
 
 def get_password(username, domain):
     pw = getpass.getpass('vCenter password for %s\%s: ' % (domain, username))
+    username = domain + '\\' + username
     return username, domain, pw
 
 
@@ -137,14 +138,12 @@ def list(domain,
 
     user, domain, password = get_password(username, domain)
 
-    vcenter_login = domain + '\\' + username
-
     vcenter = VIServer()
 
     # Allow untrusted ssl connection
     ssl._create_default_https_context = ssl._create_unverified_context
 
-    vcenter.connect(server, vcenter_login, password)
+    vcenter.connect(server, user, password)
     print "\nConnecting to server %s." % server
     vmlist = vcenter.get_registered_vms()
 
