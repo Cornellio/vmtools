@@ -48,6 +48,8 @@ def process_args():
     parser_list.add_argument('--name', help='vm name', required=False)
     parser_list.add_argument('-I', dest='regex_pattern',
                              help='vm regular expression search pattern')
+    parser_list.add_argument('-t', dest='template_only', action='store_true',
+                             help='only list vm templates')
 
     # sub-command "provision"
     parser_provision = subparsers.add_parser('provision')
@@ -77,7 +79,8 @@ def process_args():
                 args.cluster,
                 args.datacenter,
                 args.name,
-                args.regex_pattern)
+                args.regex_pattern,
+                args.template_only)
 
 
     # Return args for: provision subcommand
@@ -121,13 +124,13 @@ def list(domain,
          cluster,
          datacenter,
          name,
-         regex):
+         regex,
+         template_only):
 
     vprint(verbose, "Connecting to %s as %s\%s" % (server, domain, username))
 
     password = getpass.getpass('vCenter password for %s: ' % (username))
     vcenter_login = domain + '\\' + username
-    print vcenter_login
 
     vcenter = VIServer()
 
@@ -135,11 +138,35 @@ def list(domain,
     ssl._create_default_https_context = ssl._create_unverified_context
 
     vcenter.connect(server, vcenter_login, password)
+    print "\nConnecting to server %s." % server
     vmlist = vcenter.get_registered_vms()
 
+    vm_type = "vmx"
+
+    if template_only is True:
+        vm_type = "vmtx"
+        print "\nVM templates found:"
+    else:
+        vm_type = "vmx"
+        print "\nVMs found:"
+
+    vmlist_filtered = []
     for vm in vmlist:
         vm = vm.strip()
-        print vm
+        if vm_type == "vmx":
+            vm = str(re.findall("(?<=/).+(?=\.vmx)", vm))
+        if vm_type == "vmtx":
+            vm = str(re.findall("(?<=/).+(?=\.vmtx)", vm))
+
+        # Strip unwanted characters then match real host names only
+        vm = vm.strip('[]\'')
+        if re.match('[a-zA-Z]', vm):
+            vmlist_filtered.append(vm)
+
+    for vm in sorted(vmlist_filtered):
+        print "  " + vm
+
+    print "\nNumber of VMs: %s \n" % len(vmlist_filtered)
 
     vcenter.disconnect
 
@@ -157,7 +184,8 @@ def main():
              cluster=args[5],
              datacenter=args[6],
              name=args[7],
-             regex=args[8])
+             regex=args[8],
+             template_only=args[9])
 
     # if args[0] == "provision":
     # if args[0] == "report":
