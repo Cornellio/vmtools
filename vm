@@ -7,6 +7,7 @@ VMWare command line tools:
 * VM up
 * VM report
 '''
+
 from pysphere import MORTypes, VIServer, VITask, VIProperty, VIMor, VIException
 from pysphere.vi_virtual_machine import VIVirtualMachine
 import getpass
@@ -31,8 +32,8 @@ def process_args():
 
     # global args
     parser.add_argument('--domain', default='virginam')
-    parser.add_argument('-l', help='username', dest='username',
-                        default='pete.cornell')
+    parser.add_argument('-u', help='username', dest='username',
+                        required=True)
     parser.add_argument('-s', help='vcenter server',
                         dest='server', default='vcenter-sc9')
     parser.add_argument('-p', dest='password', help='vcenter password')
@@ -141,8 +142,6 @@ def list(domain,
     print "\nConnecting to server %s." % server
     vmlist = vcenter.get_registered_vms()
 
-    vm_type = "vmx"
-
     if template_only is True:
         vm_type = "vmtx"
         print "\nVM templates found:"
@@ -171,11 +170,33 @@ def list(domain,
     vcenter.disconnect
 
 
+def provision(domain, username, server, verbose, source, name, num):
+
+
+    # Verify the template exists
+    template_vm = find_vm(source)
+
+    if template_vm is None:
+        print 'ERROR: %s not found' % template_vm
+        sys.exit(1)
+    print_verbose('Template %s found' % template_vm)
+
+
+def find_vm(name):
+
+    try:
+        vm = con.get_vm_by_name(name)
+        return vm
+    except VIException:
+        return None
+
+
+
 def main():
     args = process_args()
-    # vprint(verbose, "Args returned from proc args:", args)
 
     # Call the core functions for each subcommand
+
     if args[0] == "list":
         list(domain=args[1],
              username=args[2],
@@ -187,7 +208,16 @@ def main():
              regex=args[8],
              template_only=args[9])
 
-    # if args[0] == "provision":
+    if args[0] == "provision":
+        provision(domain=args[1],
+             username=args[2],
+             server=args[3],
+             verbose=args[4],
+             source=args[5],
+             name=args[6],
+             num=args[7])
+
+
     # if args[0] == "report":
     # if args[0] == "getmac":
 
