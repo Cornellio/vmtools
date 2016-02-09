@@ -118,6 +118,11 @@ def process_args():
     # vm_creation_num = args.num
 
 
+def get_password(username, domain):
+    pw = getpass.getpass('vCenter password for %s\%s: ' % (domain, username))
+    return username, domain, pw
+
+
 def list(domain,
          username,
          server,
@@ -130,7 +135,8 @@ def list(domain,
 
     vprint(verbose, "Connecting to %s as %s\%s" % (server, domain, username))
 
-    password = getpass.getpass('vCenter password for %s: ' % (username))
+    user, domain, password = get_password(username, domain)
+
     vcenter_login = domain + '\\' + username
 
     vcenter = VIServer()
