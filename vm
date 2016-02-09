@@ -1,0 +1,168 @@
+#!/usr/bin/python
+
+'''
+VMWare command line tools:
+* VM list
+* VM provision
+* VM up
+* VM report
+'''
+from pysphere import MORTypes, VIServer, VITask, VIProperty, VIMor, VIException
+from pysphere.vi_virtual_machine import VIVirtualMachine
+import getpass
+import argparse
+import re
+import ssl
+
+def vprint(verbose, *message):
+    '''Print verbose messages'''
+
+    if verbose:
+        # message converted to string with tuple formatting stripped
+        message = str(message)
+        print message.strip('\'(),')
+
+
+def process_args():
+
+    '''Parse command line arguments'''
+
+    parser = argparse.ArgumentParser(description='VMware command line tools')
+
+    # global args
+    parser.add_argument('--domain', default='virginam')
+    parser.add_argument('-l', help='username', dest='username',
+                        default='pete.cornell')
+    parser.add_argument('-s', help='vcenter server',
+                        dest='server', default='vcenter-sc9')
+    parser.add_argument('-p', dest='password', help='vcenter password')
+    parser.add_argument('-v', dest='verbose', action='store_true',
+                        help='show verbose output')
+
+    # sub-command "list"
+    subparsers = parser.add_subparsers(dest="subparser_name")
+
+    parser_list = subparsers.add_parser('list')
+    parser_list.add_argument('--cluster', help='vmware cluster')
+    parser_list.add_argument('--datacenter', help='vmware datacenter')
+    parser_list.add_argument('--name', help='vm name', required=False)
+    parser_list.add_argument('-I', dest='regex_pattern',
+                             help='vm regular expression search pattern')
+
+    # sub-command "provision"
+    parser_provision = subparsers.add_parser('provision')
+    parser_provision.add_argument('--source', help='source vm to clone '
+                                  'from', required=True)
+    parser_provision.add_argument('--name', help='name of vm to provision')
+    parser_provision.add_argument('-n', dest='num', type=int,
+                                  help='number of vms to provision')
+
+    # sub-command "report"
+    parser_report = subparsers.add_parser('report')
+    parser_report.add_argument('--name', help='name of vm')
+
+    # sub-command "getmac"
+    parser_getmac = subparsers.add_parser('getmac')
+    parser_getmac.add_argument('--name', help='name of vm')
+
+    args = parser.parse_args()
+
+    # Return args for: list subcommand
+    if args.subparser_name == "list":
+        return (args.subparser_name,
+                args.domain,
+                args.username,
+                args.server,
+                args.verbose,
+                args.cluster,
+                args.datacenter,
+                args.name,
+                args.regex_pattern)
+
+
+    # Return args for: provision subcommand
+    if args.subparser_name == "provision":
+        print "selected", args.subparser_name
+        return (args.subparser_name,
+                args.source,
+                args.name,
+                args.num)
+
+
+    # Return args for: report subcommand
+    if args.subparser_name == "report":
+        print "selected", args.subparser_name
+        return args.subparser_name, args.name
+
+    # Return args for: getmac subcommand
+    if args.subparser_name == "getmac":
+        print "selected", args.subparser_name
+        return args.subparser_name, args.name
+
+    # global args:
+    # return args.domain, args.server, args.password, args.verbose
+
+    # vm_clone_source = args.vm_clone_source
+    # vm_creation_num = args.vm_creation_num
+
+    # args_list = parser.parse_args()
+    # cluster         = args_list.cluster
+    # datacenter      = args.datacenter
+    # vm_name         = args.name
+    # re_search       = args.regex_pattern
+    # vm_clone_source = args.source
+    # vm_creation_num = args.num
+
+
+def list(domain,
+         username,
+         server,
+         verbose,
+         cluster,
+         datacenter,
+         name,
+         regex):
+
+    vprint(verbose, "Connecting to %s as %s\%s" % (server, domain, username))
+
+    password = getpass.getpass('vCenter password for %s: ' % (username))
+    vcenter_login = domain + '\\' + username
+    print vcenter_login
+
+    vcenter = VIServer()
+
+    # Allow untrusted ssl connection
+    ssl._create_default_https_context = ssl._create_unverified_context
+
+    vcenter.connect(server, vcenter_login, password)
+    vmlist = vcenter.get_registered_vms()
+
+    for vm in vmlist:
+        vm = vm.strip()
+        print vm
+
+    vcenter.disconnect
+
+
+def main():
+    args = process_args()
+    # vprint(verbose, "Args returned from proc args:", args)
+
+    # Call the core functions for each subcommand
+    if args[0] == "list":
+        list(domain=args[1],
+             username=args[2],
+             server=args[3],
+             verbose=args[4],
+             cluster=args[5],
+             datacenter=args[6],
+             name=args[7],
+             regex=args[8])
+
+    # if args[0] == "provision":
+    # if args[0] == "report":
+    # if args[0] == "getmac":
+
+
+if __name__ == '__main__':
+    main()
