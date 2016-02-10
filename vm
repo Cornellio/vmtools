@@ -86,8 +86,11 @@ def process_args():
 
     # Return args for: provision subcommand
     if args.subparser_name == "provision":
-        print "selected", args.subparser_name
         return (args.subparser_name,
+                args.domain,
+                args.username,
+                args.server,
+                args.verbose,
                 args.source,
                 args.name,
                 args.num)
@@ -124,20 +127,35 @@ def get_password(username, domain):
     return username, domain, pw
 
 
-def vcenter_connect(server, user, password, request):
+def vcenter_connect(server, user, password, request, name=None):
 
     vcenter = VIServer()
 
-    # Allow untrusted ssl connection
+    # Establish server connection, allowing untrusted ssl connection
     ssl._create_default_https_context = ssl._create_unverified_context
-
     vcenter.connect(server, user, password)
+
+    if request == "get_vm_by_name":
+        response = vcenter.get_vm_by_name(name)
 
     if request == "get_registered_vms":
         response = vcenter.get_registered_vms()
 
     vcenter.disconnect
     return response
+
+
+def find_vm(user, domain, server, name):
+
+    vcenter_request = "get_vm_by_name"
+    user, domain, password = get_password(user, domain)
+
+    try:
+        vm = vcenter_connect(server, user, password, vcenter_request, name)
+        return vm
+    except VIException:
+        return None
+
 
 def list(domain,
          username,
@@ -184,24 +202,12 @@ def list(domain,
 
 def provision(domain, username, server, verbose, source, name, num):
 
-
-    # Verify the template exists
-    template_vm = find_vm(source)
-
+    # Verify the source template exists
+    template_vm = find_vm(username, domain, server, source)
     if template_vm is None:
-        print 'ERROR: %s not found' % template_vm
-        sys.exit(1)
-    print_verbose('Template %s found' % template_vm)
-
-
-def find_vm(name):
-
-    try:
-        vm = con.get_vm_by_name(name)
-        return vm
-    except VIException:
-        return None
-
+        print 'ERROR: Source vm template %s not found' % (source)
+        exit(1)
+    print 'Template %s found' % (template_vm)
 
 
 def main():
