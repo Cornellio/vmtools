@@ -124,6 +124,21 @@ def get_password(username, domain):
     return username, domain, pw
 
 
+def vcenter_connect(server, user, password, request):
+
+    vcenter = VIServer()
+
+    # Allow untrusted ssl connection
+    ssl._create_default_https_context = ssl._create_unverified_context
+
+    vcenter.connect(server, user, password)
+
+    if request == "get_registered_vms":
+        response = vcenter.get_registered_vms()
+
+    vcenter.disconnect
+    return response
+
 def list(domain,
          username,
          server,
@@ -134,18 +149,12 @@ def list(domain,
          regex,
          template_only):
 
-    vprint(verbose, "Connecting to %s as %s\%s" % (server, domain, username))
+    vprint(verbose, "Connecting to %s as %s%s" % (server, domain, username))
 
     user, domain, password = get_password(username, domain)
 
-    vcenter = VIServer()
-
-    # Allow untrusted ssl connection
-    ssl._create_default_https_context = ssl._create_unverified_context
-
-    vcenter.connect(server, user, password)
-    print "\nConnecting to server %s." % server
-    vmlist = vcenter.get_registered_vms()
+    vcenter_request = "get_registered_vms"
+    vmlist = vcenter_connect(server, user, password, vcenter_request)
 
     if template_only is True:
         vm_type = "vmtx"
@@ -171,8 +180,6 @@ def list(domain,
         print "  " + vm
 
     print "\nNumber of VMs: %s \n" % len(vmlist_filtered)
-
-    vcenter.disconnect
 
 
 def provision(domain, username, server, verbose, source, name, num):
