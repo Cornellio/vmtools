@@ -127,7 +127,7 @@ def get_password(username, domain):
     return username, domain, pw
 
 
-def vcenter_connect(server, user, password, request, name=None):
+def vcenter_connect(server, user, password, request, source_vm=None, target_vm=None, num=1):
 
     vcenter = VIServer()
 
@@ -136,19 +136,45 @@ def vcenter_connect(server, user, password, request, name=None):
     vcenter.connect(server, user, password)
 
     if request == "get_vm_by_name":
-        response = vcenter.get_vm_by_name(name)
+        response = vcenter.get_vm_by_name(source_vm)
 
     if request == "get_registered_vms":
         response = vcenter.get_registered_vms()
+
+    if request == "clone_vm":
+
+        # resource pools
+        rps = vcenter.get_resource_pools()
+        for mor, path in rps.iteritems():
+            print mor, path
+
+            # if re.match('.*%s' % source_vm, path):
+            #     print "re.match", mor
+
+        folders = vcenter._get_managed_objects(MORTypes.Folder)
+        for value in folders.iteritems():
+            print value
+
+        response = None
+
+        vm_template = vcenter.get_vm_by_name(source_vm)
+        print "init vm_template: ", vm_template
+
+        print "clone target: %s, clone source: %s" % (target_vm, source_vm)
+        clone = vm_template.clone(target_vm, True, None, None, None, None, False)
+        print "VM %s created" % target_vm
+
+        print vm.properties.config.template
+
 
     vcenter.disconnect
     return response
 
 
-def find_vm(user, domain, server, name):
+def find_vm(user, domain, password, server, name):
 
     vcenter_request = "get_vm_by_name"
-    user, domain, password = get_password(user, domain)
+    # user, domain, password = get_password(user, domain)
 
     try:
         vm = vcenter_connect(server, user, password, vcenter_request, name)
@@ -203,11 +229,17 @@ def list(domain,
 def provision(domain, username, server, verbose, source, name, num):
 
     # Verify the source template exists
-    template_vm = find_vm(username, domain, server, source)
+    username, domain, password = get_password(username, domain)
+    template_vm = find_vm(username, domain, password, server, source)
+
     if template_vm is None:
         print 'ERROR: Source vm template %s not found' % (source)
         exit(1)
     print 'Template %s found' % (template_vm)
+
+    vcenter_request = "clone_vm"
+
+    vcenter_connect(server, username, password, vcenter_request, source, name, num)
 
 
 def main():
