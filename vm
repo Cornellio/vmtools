@@ -47,6 +47,8 @@ def process_args():
     parser_list.add_argument('--cluster', help='vmware cluster')
     parser_list.add_argument('--datacenter', help='vmware datacenter')
     parser_list.add_argument('--name', help='vm name', required=False)
+    parser_list.add_argument('-d', dest='detailed_list', action='store_true',
+                             help='print detailed list', required=False)
     parser_list.add_argument('-I', dest='regex_pattern',
                              help='vm regular expression search pattern')
     parser_list.add_argument('-t', dest='template_only', action='store_true',
@@ -81,7 +83,8 @@ def process_args():
                 args.datacenter,
                 args.name,
                 args.regex_pattern,
-                args.template_only)
+                args.template_only,
+                args.detailed_list)
 
 
     # Return args for: provision subcommand
@@ -191,7 +194,8 @@ def list(domain,
          datacenter,
          name,
          regex,
-         template_only):
+         template_only,
+         detailed_list):
 
     vprint(verbose, "Connecting to %s as %s%s" % (server, domain, username))
 
@@ -202,28 +206,44 @@ def list(domain,
 
     if template_only is True:
         vm_type = "vmtx"
-        print "\nVM templates found:"
+        print "\nVirtual machine templates found:",
     else:
         vm_type = "vmx"
-        print "\nVMs found:"
+        print "\nVirtual machines found:",
 
     vmlist_filtered = []
-    for vm in vmlist:
-        vm = vm.strip()
-        if vm_type == "vmx":
-            vm = str(re.findall("(?<=/).+(?=\.vmx)", vm))
-        if vm_type == "vmtx":
-            vm = str(re.findall("(?<=/).+(?=\.vmtx)", vm))
+    if not detailed_list:
+        for vm in vmlist:
+            vm = vm.strip()
+            if vm_type == "vmx":
+                vm = str(re.findall("(?<=/).+(?=\.vmx)", vm))
+            if vm_type == "vmtx":
+                vm = str(re.findall("(?<=/).+(?=\.vmtx)", vm))
 
-        # Strip unwanted characters then match real host names only
-        vm = vm.strip('[]\'')
-        if re.match('[a-zA-Z]', vm):
-            vmlist_filtered.append(vm)
+            # Strip unwanted characters then match real host names only
+            vm = vm.strip('[]\'')
+            if re.match('[a-zA-Z]', vm):
+                vmlist_filtered.append(vm)
 
-    for vm in sorted(vmlist_filtered):
-        print "  " + vm
+        print str(len(vmlist_filtered)) + '\n'
+        for vm in sorted(vmlist_filtered):
+            print "  " + vm
 
-    print "\nNumber of VMs: %s \n" % len(vmlist_filtered)
+    else:
+        vmlist_detailed = []
+        for vm in vmlist:
+            vm = vm.strip()
+            if vm_type == "vmx":
+                vm = str(re.findall(".*\.vmx", vm))
+            if vm_type == "vmtx":
+                vm = str(re.findall(".*\.vmtx", vm))
+
+            if re.match('.*[a-zA-Z]', vm):
+                vmlist_detailed.append(vm)
+
+        print str(len(vmlist_detailed)) + '\n'
+        for vm in sorted(vmlist_detailed):
+            print "  " + vm
 
 
 def provision(domain, username, server, verbose, source, name, num):
@@ -256,7 +276,8 @@ def main():
              datacenter=args[6],
              name=args[7],
              regex=args[8],
-             template_only=args[9])
+             template_only=args[9],
+             detailed_list=args[10])
 
     if args[0] == "provision":
         provision(domain=args[1],
