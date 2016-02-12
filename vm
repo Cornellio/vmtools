@@ -1,11 +1,13 @@
 #!/usr/bin/python
 
 '''
-VMWare command line tools:
-* VM list
-* VM provision
-* VM up
-* VM report
+Tool for interacting with the VMWare API,
+allowing basic operations in VSphere such as:
+* List VMs
+* Provision VMs by cloning VM templates
+* Booting VMs
+* Reporting VM information
+* List VMWare resource pools
 '''
 
 from pysphere import MORTypes, VIServer, VITask, VIProperty, VIMor, VIException
@@ -15,7 +17,9 @@ import argparse
 import re
 import ssl
 
+
 def vprint(verbose, *message):
+
     '''Print verbose messages'''
 
     if verbose:
@@ -59,8 +63,14 @@ def process_args():
     parser_provision.add_argument('--source', help='source vm to clone '
                                   'from', required=True)
     parser_provision.add_argument('--name', help='name of vm to provision')
+    parser_provision.add_argument('-r', dest='resource_pool',
+                                  help='resource pool',  required=True)
     parser_provision.add_argument('-n', dest='num', type=int,
                                   help='number of vms to provision')
+
+    # sub-command "get_resource_pools"
+    parser_lsrps = subparsers.add_parser('lsrps')
+    # parser_lsrps.add_argument('-r', dest='list', help='list resource pools')
 
     # sub-command "report"
     parser_report = subparsers.add_parser('report')
@@ -96,8 +106,16 @@ def process_args():
                 args.verbose,
                 args.source,
                 args.name,
+                args.resource_pool,
                 args.num)
 
+    # Return args for: rpslist
+    if args.subparser_name == "lsrps":
+        return (args.subparser_name,
+                args.domain,
+                args.username,
+                args.server,
+                args.verbose)
 
     # Return args for: report subcommand
     if args.subparser_name == "report":
@@ -109,20 +127,6 @@ def process_args():
         print "selected", args.subparser_name
         return args.subparser_name, args.name
 
-    # global args:
-    # return args.domain, args.server, args.password, args.verbose
-
-    # vm_clone_source = args.vm_clone_source
-    # vm_creation_num = args.vm_creation_num
-
-    # args_list = parser.parse_args()
-    # cluster         = args_list.cluster
-    # datacenter      = args.datacenter
-    # vm_name         = args.name
-    # re_search       = args.regex_pattern
-    # vm_clone_source = args.source
-    # vm_creation_num = args.num
-
 
 def get_password(username, domain):
     pw = getpass.getpass('vCenter password for %s\%s: ' % (domain, username))
@@ -130,7 +134,7 @@ def get_password(username, domain):
     return username, domain, pw
 
 
-def vcenter_connect(server, user, password, request, source_vm=None, target_vm=None, num=1):
+def vcenter_connect(server, user, password, request, source_vm=None, target_vm=None, res_pool=None, num=1):
 
     vcenter = VIServer()
 
@@ -141,34 +145,32 @@ def vcenter_connect(server, user, password, request, source_vm=None, target_vm=N
     if request == "get_vm_by_name":
         response = vcenter.get_vm_by_name(source_vm)
 
+    if request == "get_resource_pools":
+        rps_list = []
+        rps = vcenter.get_resource_pools()
+        for mor, path in rps.iteritems():
+            rps_list.append(path)
+        response = rps_list
+
     if request == "get_registered_vms":
         response = vcenter.get_registered_vms()
 
     if request == "clone_vm":
+        response = None
 
-        # resource pools
         rps = vcenter.get_resource_pools()
         for mor, path in rps.iteritems():
-            print mor, path
+            if re.match('.*%s' % res_pool, path):
+                resource_pool_id = mor
 
-            # if re.match('.*%s' % source_vm, path):
-            #     print "re.match", mor
-
-        folders = vcenter._get_managed_objects(MORTypes.Folder)
-        for value in folders.iteritems():
-            print value
-
-        response = None
+        print "Using resource_pool_id: ", resource_pool_id
 
         vm_template = vcenter.get_vm_by_name(source_vm)
         print "init vm_template: ", vm_template
 
-        print "clone target: %s, clone source: %s" % (target_vm, source_vm)
-        clone = vm_template.clone(target_vm, True, None, None, None, None, False)
-        print "VM %s created" % target_vm
-
-        print vm.properties.config.template
-
+        print "clone source: %s, clone target: %s" % (source_vm, target_vm)
+        clone = vm_template.clone(target_vm, True, None, resource_pool_id, None, None, False)
+        print "done."
 
     vcenter.disconnect
     return response
@@ -186,7 +188,7 @@ def find_vm(user, domain, password, server, name):
         return None
 
 
-def list(domain,
+def vm_list(domain,
          username,
          server,
          verbose,
@@ -212,6 +214,7 @@ def list(domain,
         print "\nVirtual machines found:",
 
     vmlist_filtered = []
+
     if not detailed_list:
         for vm in vmlist:
             vm = vm.strip()
@@ -246,7 +249,7 @@ def list(domain,
             print "  " + vm
 
 
-def provision(domain, username, server, verbose, source, name, num):
+def provision(domain, username, server, verbose, source, name, res_pool, num):
 
     # Verify the source template exists
     username, domain, password = get_password(username, domain)
@@ -259,8 +262,17 @@ def provision(domain, username, server, verbose, source, name, num):
 
     vcenter_request = "clone_vm"
 
-    vcenter_connect(server, username, password, vcenter_request, source, name, num)
+    vcenter_connect(server, username, password, vcenter_request, source, name, res_pool, num)
 
+def lsrps(domain, username, server, verbose):
+
+    vcenter_request = "get_resource_pools"
+
+    username, domain, password = get_password(username, domain)
+    resource_pools = vcenter_connect(server, username, password, vcenter_request)
+
+    for res_pool in resource_pools:
+        print res_pool
 
 def main():
     args = process_args()
@@ -268,7 +280,7 @@ def main():
     # Call the core functions for each subcommand
 
     if args[0] == "list":
-        list(domain=args[1],
+        vm_list(domain=args[1],
              username=args[2],
              server=args[3],
              verbose=args[4],
@@ -286,7 +298,14 @@ def main():
              verbose=args[4],
              source=args[5],
              name=args[6],
-             num=args[7])
+             res_pool=args[7],
+             num=args[8])
+
+    if args[0] == "lsrps":
+        lsrps(domain=args[1],
+             username=args[2],
+             server=args[3],
+             verbose=args[4])
 
 
     # if args[0] == "report":
