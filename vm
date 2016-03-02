@@ -69,8 +69,7 @@ def process_args():
                                   help='number of vms to provision')
 
     # sub-command "get_resource_pools"
-    parser_lsrps = subparsers.add_parser('lsrps')
-    # parser_lsrps.add_argument('-r', dest='list', help='list resource pools')
+    parser_get_resource_pools = subparsers.add_parser('get_resource_pools')
 
     # sub-command "report"
     parser_report = subparsers.add_parser('report')
@@ -108,7 +107,7 @@ def process_args():
                 args.num)
 
     # Return args for: rpslist
-    if args.subparser_name == "lsrps":
+    if args.subparser_name == "get_resource_pools":
         return (args.subparser_name,
                 args.domain,
                 args.username,
@@ -296,7 +295,7 @@ def provision(domain, username, server, verbose, source, name, res_pool, num):
                     vcenter_request, source, name, res_pool, num)
 
 
-def lsrps(domain, username, server, verbose):
+def get_resource_pools(domain, username, server, verbose):
 
     vcenter_request = "get_resource_pools"
 
@@ -335,11 +334,11 @@ def main():
                   res_pool=args[7],
                   num=args[8])
 
-    if args[0] == "lsrps":
-        lsrps(domain=args[1],
-              username=args[2],
-              server=args[3],
-              verbose=args[4])
+    if args[0] == "get_resource_pools":
+        get_resource_pools(domain=args[1],
+                           username=args[2],
+                           server=args[3],
+                           verbose=args[4])
 
     if args[0] == "report":
         report(domain=args[1],
