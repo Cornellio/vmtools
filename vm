@@ -74,7 +74,6 @@ def process_args():
 
     # sub-command "report"
     parser_report = subparsers.add_parser('report')
-    parser_report.add_argument('--name', help='name of vm')
 
     # sub-command "getmac"
     parser_getmac = subparsers.add_parser('getmac')
@@ -95,7 +94,6 @@ def process_args():
                 args.regex_pattern,
                 args.template_only,
                 args.detailed_list)
-
 
     # Return args for: provision subcommand
     if args.subparser_name == "provision":
@@ -119,13 +117,32 @@ def process_args():
 
     # Return args for: report subcommand
     if args.subparser_name == "report":
-        print "selected", args.subparser_name
-        return args.subparser_name, args.name
+        return (args.subparser_name,
+                args.domain,
+                args.username,
+                args.server,
+                args.verbose)
 
     # Return args for: getmac subcommand
     if args.subparser_name == "getmac":
         print "selected", args.subparser_name
         return args.subparser_name, args.name
+
+def report(domain, username, server, verbose):
+
+    user, domain, password = get_password(username, domain)
+
+    # Get datacenters
+    datacenters = con.get_datacenters().values()
+
+    # Get clusters
+    clusters = con.get_clusters().values()
+
+    # Get Hosts
+    hosts = con.get_hosts().values()
+
+    # Get Datastores
+    datastores = con.get_datastores().values()
 
 
 def get_password(username, domain):
@@ -134,12 +151,14 @@ def get_password(username, domain):
     return username, domain, pw
 
 
-def vcenter_connect(server, user, password, request, source_vm=None, target_vm=None, res_pool=None, num=1):
+def vcenter_connect(server, user, password, request,
+                    source_vm=None, target_vm=None, res_pool=None, num=1):
 
     vcenter = VIServer()
 
-    # Establish server connection, allowing untrusted ssl connection
+    # Permit untrusted ssl connection
     ssl._create_default_https_context = ssl._create_unverified_context
+
     vcenter.connect(server, user, password)
 
     if request == "get_vm_by_name":
@@ -156,7 +175,6 @@ def vcenter_connect(server, user, password, request, source_vm=None, target_vm=N
         response = vcenter.get_registered_vms()
 
     if request == "clone_vm":
-        response = None
 
         rps = vcenter.get_resource_pools()
         for mor, path in rps.iteritems():
@@ -169,8 +187,16 @@ def vcenter_connect(server, user, password, request, source_vm=None, target_vm=N
         print "init vm_template: ", vm_template
 
         print "clone source: %s, clone target: %s" % (source_vm, target_vm)
-        clone = vm_template.clone(target_vm, True, None, resource_pool_id, None, None, False)
+        clone = vm_template.clone(target_vm, True, None,
+                                  resource_pool_id, None, None, False)
         print "done."
+        response = None
+
+    if request == "get_server_type":
+        response = vcenter.get_server_type()
+
+    if request == "get_api_version":
+        response = vcenter.get_api_version()
 
     vcenter.disconnect
     return response
@@ -189,19 +215,23 @@ def find_vm(user, domain, password, server, name):
 
 
 def vm_list(domain,
-         username,
-         server,
-         verbose,
-         cluster,
-         datacenter,
-         name,
-         regex,
-         template_only,
-         detailed_list):
-
-    vprint(verbose, "Connecting to %s as %s%s" % (server, domain, username))
+            username,
+            server,
+            verbose,
+            cluster,
+            datacenter,
+            name,
+            regex,
+            template_only,
+            detailed_list):
 
     user, domain, password = get_password(username, domain)
+
+    vprint(verbose, "Connecting to %s as %s@%s" % (server, username, domain))
+    vprint(verbose, "Server type: %s" %
+           (vcenter_connect(server, user, password, "get_server_type")))
+    vprint(verbose, "Server version: %s" %
+           (vcenter_connect(server, user, password, "get_api_version")))
 
     vcenter_request = "get_registered_vms"
     vmlist = vcenter_connect(server, user, password, vcenter_request)
@@ -262,17 +292,21 @@ def provision(domain, username, server, verbose, source, name, res_pool, num):
 
     vcenter_request = "clone_vm"
 
-    vcenter_connect(server, username, password, vcenter_request, source, name, res_pool, num)
+    vcenter_connect(server, username, password,
+                    vcenter_request, source, name, res_pool, num)
+
 
 def lsrps(domain, username, server, verbose):
 
     vcenter_request = "get_resource_pools"
 
     username, domain, password = get_password(username, domain)
-    resource_pools = vcenter_connect(server, username, password, vcenter_request)
+    resource_pools = vcenter_connect(server, username, password,
+                                     vcenter_request)
 
     for res_pool in resource_pools:
         print res_pool
+
 
 def main():
     args = process_args()
@@ -281,34 +315,38 @@ def main():
 
     if args[0] == "list":
         vm_list(domain=args[1],
-             username=args[2],
-             server=args[3],
-             verbose=args[4],
-             cluster=args[5],
-             datacenter=args[6],
-             name=args[7],
-             regex=args[8],
-             template_only=args[9],
-             detailed_list=args[10])
+                username=args[2],
+                server=args[3],
+                verbose=args[4],
+                cluster=args[5],
+                datacenter=args[6],
+                name=args[7],
+                regex=args[8],
+                template_only=args[9],
+                detailed_list=args[10])
 
     if args[0] == "provision":
         provision(domain=args[1],
-             username=args[2],
-             server=args[3],
-             verbose=args[4],
-             source=args[5],
-             name=args[6],
-             res_pool=args[7],
-             num=args[8])
+                  username=args[2],
+                  server=args[3],
+                  verbose=args[4],
+                  source=args[5],
+                  name=args[6],
+                  res_pool=args[7],
+                  num=args[8])
 
     if args[0] == "lsrps":
         lsrps(domain=args[1],
-             username=args[2],
-             server=args[3],
-             verbose=args[4])
+              username=args[2],
+              server=args[3],
+              verbose=args[4])
 
+    if args[0] == "report":
+        report(domain=args[1],
+               username=args[2],
+               server=args[3],
+               verbose=args[4])
 
-    # if args[0] == "report":
     # if args[0] == "getmac":
 
 
