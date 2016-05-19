@@ -76,7 +76,7 @@ def process_args():
 
     # sub-command "getmac"
     parser_getmac = subparsers.add_parser('getmac')
-    parser_getmac.add_argument('--name', help='name of vm')
+    parser_getmac.add_argument('--name', help='name of vm', required=True)
 
     args = parser.parse_args()
 
@@ -124,8 +124,12 @@ def process_args():
 
     # Return args for: getmac subcommand
     if args.subparser_name == "getmac":
-        print "selected", args.subparser_name
-        return args.subparser_name, args.name
+        return (args.subparser_name,
+                args.domain,
+                args.username,
+                args.server,
+                args.name,
+                args.verbose)
 
 def report(domain, username, server, verbose):
 
@@ -196,6 +200,17 @@ def vcenter_connect(server, user, password, request,
 
     if request == "get_api_version":
         response = vcenter.get_api_version()
+
+    if request == "get_mac_address":
+
+        vm = vcenter.get_vm_by_name(source_vm)
+        net = vm.get_property('net', from_cache=False)
+
+        if net:
+            for interface in net:
+              mac = interface.get('mac_address', None)
+              if mac:
+                response = mac
 
     vcenter.disconnect
     return response
@@ -307,6 +322,15 @@ def get_resource_pools(domain, username, server, verbose):
         print res_pool
 
 
+def get_mac_address(domain, username, server, vm, verbose):
+
+    vcenter_request = "get_mac_address"
+
+    username, domain, password = get_password(username, domain)
+    mac_address = vcenter_connect(server, username, password, vcenter_request, vm)
+    print mac_address
+
+
 def main():
     args = process_args()
 
@@ -346,7 +370,12 @@ def main():
                server=args[3],
                verbose=args[4])
 
-    # if args[0] == "getmac":
+    if args[0] == "getmac":
+        get_mac_address(domain=args[1],
+                        username=args[2],
+                        server=args[3],
+                        vm=args[4],
+                        verbose=args[5])
 
 
 if __name__ == '__main__':
