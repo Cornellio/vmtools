@@ -36,10 +36,8 @@ def process_args():
 
     # global args
     parser.add_argument('--domain', default='virginam')
-    parser.add_argument('-u', help='username', dest='username',
-                        required=True)
-    parser.add_argument('-s', help='vcenter server',
-                        dest='server', default='vcenter-sc9')
+    parser.add_argument('-u', help='username', dest='username', required=True)
+    parser.add_argument('-s', help='vcenter server', dest='server')
     parser.add_argument('-p', dest='password', help='vcenter password')
     parser.add_argument('-v', dest='verbose', action='store_true',
                         help='show verbose output')
@@ -77,6 +75,10 @@ def process_args():
     # sub-command "getmac"
     parser_getmac = subparsers.add_parser('getmac')
     parser_getmac.add_argument('--name', help='name of vm', required=True)
+
+    # sub-command "power_on"
+    parser_poweron = subparsers.add_parser('power_on')
+    parser_poweron.add_argument('--name', help='name of vm', required=True)
 
     args = parser.parse_args()
 
@@ -131,6 +133,16 @@ def process_args():
                 args.name,
                 args.verbose)
 
+    # Return args for: power_on subcommand
+    if args.subparser_name == "power_on":
+        return (args.subparser_name,
+                args.domain,
+                args.username,
+                args.server,
+                args.name,
+                args.verbose)
+
+
 def report(domain, username, server, verbose):
 
     user, domain, password = get_password(username, domain)
@@ -149,7 +161,7 @@ def report(domain, username, server, verbose):
 
 
 def get_password(username, domain):
-    pw = getpass.getpass('vCenter password for %s\%s: ' % (domain, username))
+    pw = getpass.getpass('VCenter password for %s\%s: ' % (domain, username))
     username = domain + '\\' + username
     return username, domain, pw
 
@@ -194,6 +206,16 @@ def vcenter_connect(server, user, password, request,
                                   resource_pool_id, None, None, False)
         print "done."
         response = None
+
+    if request == "power_on":
+        vm = vcenter.get_vm_by_name(source_vm)
+        try:
+            vm.power_on()
+            print 'Power on virtual machine: %s' % source_vm
+            response = None
+        except VIException:
+            print 'Could not power on virtual machine: %s' % source_vm
+            response = None
 
     if request == "get_server_type":
         response = vcenter.get_server_type()
@@ -331,6 +353,14 @@ def get_mac_address(domain, username, server, vm, verbose):
     print mac_address
 
 
+def power_on(domain, username, server, vm, verbose):
+
+    vcenter_request = "power_on"
+
+    username, domain, password = get_password(username, domain)
+    vcenter_connect(server, username, password, vcenter_request, vm)
+
+
 def main():
     args = process_args()
 
@@ -376,6 +406,13 @@ def main():
                         server=args[3],
                         vm=args[4],
                         verbose=args[5])
+
+    if args[0] == "power_on":
+        power_on(domain=args[1],
+                 username=args[2],
+                 server=args[3],
+                 vm=args[4],
+                 verbose=args[5])
 
 
 if __name__ == '__main__':
