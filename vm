@@ -80,6 +80,10 @@ def process_args():
     parser_poweron = subparsers.add_parser('power_on')
     parser_poweron.add_argument('--name', help='name of vm', required=True)
 
+    # sub-command "power_off"
+    parser_poweron = subparsers.add_parser('power_off')
+    parser_poweron.add_argument('--name', help='name of vm', required=True)
+
     args = parser.parse_args()
 
     # Return args for: list subcommand
@@ -135,6 +139,15 @@ def process_args():
 
     # Return args for: power_on subcommand
     if args.subparser_name == "power_on":
+        return (args.subparser_name,
+                args.domain,
+                args.username,
+                args.server,
+                args.name,
+                args.verbose)
+
+    # Return args for: power_off subcommand
+    if args.subparser_name == "power_off":
         return (args.subparser_name,
                 args.domain,
                 args.username,
@@ -211,10 +224,20 @@ def vcenter_connect(server, user, password, request,
         vm = vcenter.get_vm_by_name(source_vm)
         try:
             vm.power_on()
-            print 'Power on virtual machine: %s' % source_vm
+            print 'Powering on virtual machine: %s' % source_vm
             response = None
         except VIException:
             print 'Could not power on virtual machine: %s' % source_vm
+            response = None
+
+    if request == "power_off":
+        vm = vcenter.get_vm_by_name(source_vm)
+        try:
+            vm.power_off()
+            print 'Powering off virtual machine: %s' % source_vm
+            response = None
+        except VIException:
+            print 'Could not power off virtual machine: %s' % source_vm
             response = None
 
     if request == "get_server_type":
@@ -360,6 +383,13 @@ def power_on(domain, username, server, vm, verbose):
     username, domain, password = get_password(username, domain)
     vcenter_connect(server, username, password, vcenter_request, vm)
 
+def power_off(domain, username, server, vm, verbose):
+
+    vcenter_request = "power_off"
+
+    username, domain, password = get_password(username, domain)
+    vcenter_connect(server, username, password, vcenter_request, vm)
+
 
 def main():
     args = process_args()
@@ -409,6 +439,13 @@ def main():
 
     if args[0] == "power_on":
         power_on(domain=args[1],
+                 username=args[2],
+                 server=args[3],
+                 vm=args[4],
+                 verbose=args[5])
+
+    if args[0] == "power_off":
+        power_off(domain=args[1],
                  username=args[2],
                  server=args[3],
                  vm=args[4],
