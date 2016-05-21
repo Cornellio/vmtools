@@ -71,6 +71,7 @@ def process_args():
 
     # sub-command "report"
     parser_report = subparsers.add_parser('report')
+    parser_report.add_argument('--name', help='name of vm', required=True)
 
     # sub-command "getmac"
     parser_getmac = subparsers.add_parser('getmac')
@@ -81,8 +82,8 @@ def process_args():
     parser_poweron.add_argument('--name', help='name of vm', required=True)
 
     # sub-command "power_off"
-    parser_poweron = subparsers.add_parser('power_off')
-    parser_poweron.add_argument('--name', help='name of vm', required=True)
+    parser_poweroff = subparsers.add_parser('power_off')
+    parser_poweroff.add_argument('--name', help='name of vm', required=True)
 
     args = parser.parse_args()
 
