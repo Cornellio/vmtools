@@ -52,9 +52,14 @@ def process_args():
     parser_list.add_argument('-d', dest='detailed_list', action='store_true',
                              help='print detailed list', required=False)
     parser_list.add_argument('-I', dest='regex_pattern',
-                             help='vm regular expression search pattern')
+                             help='filter VM list with regex pattern')
     parser_list.add_argument('-t', dest='template_only', action='store_true',
-                             help='only list vm templates')
+                             help='list VM templates only')
+    parser_list.add_argument('--on', '--powered_on', dest='powered_on',
+                             action='store_true', help='list VMs that are powered on')
+    parser_list.add_argument('--off', '--powered_off', dest='powered_off',
+                             action='store_true', help='list VMs that are powered off')
+
 
     # sub-command "provision"
     parser_provision = subparsers.add_parser('provision')
@@ -89,6 +94,12 @@ def process_args():
 
     # Return args for: list subcommand
     if args.subparser_name == "list":
+        if args.powered_on:
+            vm_status = 'poweredOn'
+        elif args.powered_off:
+            vm_status = 'poweredOff'
+        else:
+            vm_status = None
         return (args.subparser_name,
                 args.domain,
                 args.username,
@@ -99,7 +110,8 @@ def process_args():
                 args.name,
                 args.regex_pattern,
                 args.template_only,
-                args.detailed_list)
+                args.detailed_list,
+                vm_status)
 
     # Return args for: provision subcommand
     if args.subparser_name == "provision":
@@ -181,7 +193,8 @@ def get_password(username, domain):
 
 
 def vcenter_connect(server, user, password, request,
-                    source_vm=None, target_vm=None, res_pool=None, num=1):
+                    source_vm=None, target_vm=None,
+                    res_pool=None, num=1, vm_status=None):
 
     vcenter = VIServer()
 
@@ -201,7 +214,7 @@ def vcenter_connect(server, user, password, request,
         response = rps_list
 
     if request == "get_registered_vms":
-        response = vcenter.get_registered_vms()
+        response = vcenter.get_registered_vms(status=vm_status)
 
     if request == "clone_vm":
 
@@ -283,7 +296,8 @@ def vm_list(domain,
             name,
             regex,
             template_only,
-            detailed_list):
+            detailed_list,
+            vm_status):
 
     user, domain, password = get_password(username, domain)
 
@@ -294,7 +308,9 @@ def vm_list(domain,
            (vcenter_connect(server, user, password, "get_api_version")))
 
     vcenter_request = "get_registered_vms"
-    vmlist = vcenter_connect(server, user, password, vcenter_request)
+
+    vmlist = vcenter_connect(server, user, password,
+                             vcenter_request, vm_status=vm_status)
 
     if template_only is True:
         vm_type = "vmtx"
@@ -407,7 +423,9 @@ def main():
                 name=args[7],
                 regex=args[8],
                 template_only=args[9],
-                detailed_list=args[10])
+                detailed_list=args[10],
+                vm_status=args[11])
+
 
     if args[0] == "provision":
         provision(domain=args[1],
