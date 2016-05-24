@@ -16,6 +16,7 @@ import getpass
 import argparse
 import re
 import ssl
+import sys
 
 
 def vprint(verbose, *message):
@@ -106,6 +107,7 @@ def process_args():
         return (args.subparser_name,
                 args.domain,
                 args.username,
+                args.password,
                 args.server,
                 args.verbose,
                 args.cluster,
@@ -120,6 +122,7 @@ def process_args():
         return (args.subparser_name,
                 args.domain,
                 args.username,
+                args.password,
                 args.server,
                 args.verbose)
 
@@ -128,6 +131,7 @@ def process_args():
         return (args.subparser_name,
                 args.domain,
                 args.username,
+                args.password,
                 args.server,
                 args.verbose,
                 args.source,
@@ -140,6 +144,7 @@ def process_args():
         return (args.subparser_name,
                 args.domain,
                 args.username,
+                args.password,
                 args.server,
                 args.verbose)
 
@@ -148,6 +153,7 @@ def process_args():
         return (args.subparser_name,
                 args.domain,
                 args.username,
+                args.password,
                 args.server,
                 args.verbose)
 
@@ -156,6 +162,7 @@ def process_args():
         return (args.subparser_name,
                 args.domain,
                 args.username,
+                args.password,
                 args.server,
                 args.name,
                 args.verbose)
@@ -165,6 +172,7 @@ def process_args():
         return (args.subparser_name,
                 args.domain,
                 args.username,
+                args.password,
                 args.server,
                 args.name,
                 args.verbose)
@@ -174,14 +182,15 @@ def process_args():
         return (args.subparser_name,
                 args.domain,
                 args.username,
+                args.password,
                 args.server,
                 args.name,
                 args.verbose)
 
 
-def report(domain, username, server, verbose):
+def report(domain, username, pw, server, verbose):
 
-    user, domain, password = get_password(username, domain)
+    user, domain, password = get_password(username, domain, pw)
 
     # Get datacenters
     datacenters = con.get_datacenters().values()
@@ -196,14 +205,15 @@ def report(domain, username, server, verbose):
     datastores = con.get_datastores().values()
 
 
-def get_password(username, domain):
-    pw = getpass.getpass('VCenter password for %s\%s: ' % (domain, username))
+def get_password(username, domain, pw):
+    if not pw:
+        pw = getpass.getpass('VCenter password: ')
     if domain:
         username = domain + '\\' + username
-    return username, domain, pw
+    return username, pw
 
 
-def vcenter_connect(server, user, password, request,
+def vcenter_connect(server, user, pw, request,
                     source_vm=None, target_vm=None,
                     res_pool=None, num=1, vm_status=None):
 
@@ -212,7 +222,13 @@ def vcenter_connect(server, user, password, request,
     # Permit untrusted ssl connection
     ssl._create_default_https_context = ssl._create_unverified_context
 
-    vcenter.connect(server, user, password)
+    try:
+        vcenter.connect(server, user, pw)
+    except:
+        print ('Connection to %s failed. Username: %s\n'
+               'Did you forget to provide the domain?' % (server, user))
+        sys.exit(1)
+
 
     if request == "get_vm_by_name":
         response = vcenter.get_vm_by_name(source_vm)
@@ -275,7 +291,6 @@ def vcenter_connect(server, user, password, request,
 
         vm = vcenter.get_vm_by_name(source_vm)
         net = vm.get_property('net', from_cache=False)
-
         if net:
             for interface in net:
               mac = interface.get('mac_address', None)
@@ -293,13 +308,13 @@ def vcenter_connect(server, user, password, request,
     return response
 
 
-def find_vm(user, domain, password, server, name):
+def find_vm(user, domain, pw, server, name):
 
     vcenter_request = "get_vm_by_name"
     # user, domain, password = get_password(user, domain)
 
     try:
-        vm = vcenter_connect(server, user, password, vcenter_request, name)
+        vm = vcenter_connect(server, user, pw, vcenter_request, name)
         return vm
     except VIException:
         return None
@@ -307,6 +322,7 @@ def find_vm(user, domain, password, server, name):
 
 def vm_list(domain,
             username,
+            pw,
             server,
             verbose,
             cluster,
@@ -317,17 +333,22 @@ def vm_list(domain,
             detailed_list,
             vm_status):
 
-    user, domain, password = get_password(username, domain)
+    # Variable to hold username only, before combining with domain
+    user = username
+    username, pw = get_password(username, domain, pw)
 
-    vprint(verbose, "Connecting to %s as %s@%s" % (server, username, domain))
-    vprint(verbose, "Server type: %s" %
-           (vcenter_connect(server, user, password, "get_server_type")))
-    vprint(verbose, "Server version: %s" %
-           (vcenter_connect(server, user, password, "get_api_version")))
+    vprint(verbose, "Connecting as %s" % (user))
+    if domain:
+        vprint(verbose, "Domain: %s" % (domain))
+    vprint(verbose, "Server: %s" % (server))
+    vprint(verbose, "Type: %s" %
+           (vcenter_connect(server, username, pw, "get_server_type")))
+    vprint(verbose, "API Version: %s" %
+           (vcenter_connect(server, username, pw, "get_api_version")))
 
     vcenter_request = "get_registered_vms"
 
-    vmlist = vcenter_connect(server, user, password,
+    vmlist = vcenter_connect(server, username, pw,
                              vcenter_request, vm_status=vm_status)
 
     if template_only is True:
@@ -373,10 +394,10 @@ def vm_list(domain,
             print "  " + vm
 
 
-def provision(domain, username, server, verbose, source, name, res_pool, num):
+def provision(domain, username, pw, server, verbose, source, name, res_pool, num):
 
     # Verify the source template exists
-    username, domain, password = get_password(username, domain)
+    username, pw = get_password(username, domain, pw)
     template_vm = find_vm(username, domain, password, server, source)
 
     if template_vm is None:
@@ -386,52 +407,51 @@ def provision(domain, username, server, verbose, source, name, res_pool, num):
 
     vcenter_request = "clone_vm"
 
-    vcenter_connect(server, username, password,
+    vcenter_connect(server, username, pw,
                     vcenter_request, source, name, res_pool, num)
 
 
-def get_resource_pools(domain, username, server, verbose):
+def get_resource_pools(domain, username, pw, server, verbose):
 
     vcenter_request = "get_resource_pools"
 
-    username, domain, password = get_password(username, domain)
-    resource_pools = vcenter_connect(server, username, password,
+    username, pw = get_password(username, domain, pw)
+    resource_pools = vcenter_connect(server, username, pw,
                                      vcenter_request)
 
     for res_pool in resource_pools:
         print res_pool
 
 
-def get_mac_address(domain, username, server, vm, verbose):
+def get_mac_address(domain, username, pw, server, vm, verbose):
 
     vcenter_request = "get_mac_address"
 
-    username, domain, password = get_password(username, domain)
-    mac_address = vcenter_connect(server, username, password, vcenter_request, vm)
+    username, pw = get_password(username, domain, pw)
+    mac_address = vcenter_connect(server, username, pw, vcenter_request, vm)
     print mac_address
 
 
-def power_on(domain, username, server, vm, verbose):
+def power_on(domain, username, pw, server, vm, verbose):
 
     vcenter_request = "power_on"
 
-    username, domain, password = get_password(username, domain)
-    vcenter_connect(server, username, password, vcenter_request, vm)
+    username, pw = get_password(username, domain, pw)
+    vcenter_connect(server, username, pw, vcenter_request, vm)
 
-def power_off(domain, username, server, vm, verbose):
+def power_off(domain, username, pw, server, vm, verbose):
 
     vcenter_request = "power_off"
 
-    username, domain, password = get_password(username, domain)
-    vcenter_connect(server, username, password, vcenter_request, vm)
+    username, pw = get_password(username, domain, pw)
+    vcenter_connect(server, username, pw, vcenter_request, vm)
 
 
-def get_datacenters(domain, username, server, verbose):
+def get_datacenters(domain, username, pw, server, verbose):
 
     vcenter_request = "get_datacenters"
-
-    username, domain, password = get_password(username, domain)
-    dc = vcenter_connect(server, username, password, vcenter_request)
+    username, pw = get_password(username, domain, pw)
+    dc = vcenter_connect(server, username, pw, vcenter_request)
     print '\nData Centers in %s:\n' % (server) + dc
 
 
@@ -443,65 +463,73 @@ def main():
     if args[0] == "get_datacenters":
         get_datacenters(domain=args[1],
                 username=args[2],
-                server=args[3],
-                verbose=args[4])
+                pw=args[3],
+                server=args[4],
+                verbose=args[5])
 
     if args[0] == "list":
         vm_list(domain=args[1],
                 username=args[2],
-                server=args[3],
-                verbose=args[4],
-                cluster=args[5],
-                datacenter=args[6],
-                name=args[7],
-                regex=args[8],
-                template_only=args[9],
-                detailed_list=args[10],
-                vm_status=args[11])
+                pw=args[3],
+                server=args[4],
+                verbose=args[5],
+                cluster=args[6],
+                datacenter=args[7],
+                name=args[8],
+                regex=args[9],
+                template_only=args[10],
+                detailed_list=args[11],
+                vm_status=args[12])
 
 
     if args[0] == "provision":
         provision(domain=args[1],
                   username=args[2],
-                  server=args[3],
-                  verbose=args[4],
-                  source=args[5],
-                  name=args[6],
-                  res_pool=args[7],
-                  num=args[8])
+                  pw=args[3],
+                  server=args[4],
+                  verbose=args[5],
+                  source=args[6],
+                  name=args[7],
+                  res_pool=args[8],
+                  num=args[9])
 
     if args[0] == "get_resource_pools":
         get_resource_pools(domain=args[1],
                            username=args[2],
-                           server=args[3],
-                           verbose=args[4])
+                           pw=args[3],
+                           server=args[4],
+                           verbose=args[5])
 
     if args[0] == "report":
         report(domain=args[1],
                username=args[2],
-               server=args[3],
-               verbose=args[4])
+               pw=args[3],
+               server=args[4],
+               verbose=args[5])
 
     if args[0] == "getmac":
         get_mac_address(domain=args[1],
                         username=args[2],
-                        server=args[3],
-                        vm=args[4],
-                        verbose=args[5])
+                        pw=args[3],
+                        server=args[4],
+                        vm=args[5],
+                        verbose=args[6])
 
     if args[0] == "power_on":
         power_on(domain=args[1],
                  username=args[2],
-                 server=args[3],
-                 vm=args[4],
-                 verbose=args[5])
+                 pw=args[3],
+                 server=args[4],
+                 vm=args[5],
+                 verbose=args[6])
 
     if args[0] == "power_off":
         power_off(domain=args[1],
                  username=args[2],
-                 server=args[3],
-                 vm=args[4],
-                 verbose=args[5])
+                 pw=args[3],
+                 server=args[4],
+                 vm=args[5],
+                 verbose=args[6])
 
 
 if __name__ == '__main__':
