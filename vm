@@ -35,7 +35,7 @@ def process_args():
     parser = argparse.ArgumentParser(description='VMware command line tools')
 
     # global args
-    parser.add_argument('--domain', default='virginam')
+    parser.add_argument('--domain')
     parser.add_argument('-u', help='username', dest='username', required=True)
     parser.add_argument('-s', help='vcenter server', dest='server')
     parser.add_argument('-p', dest='password', help='vcenter password')
@@ -198,7 +198,8 @@ def report(domain, username, server, verbose):
 
 def get_password(username, domain):
     pw = getpass.getpass('VCenter password for %s\%s: ' % (domain, username))
-    username = domain + '\\' + username
+    if domain:
+        username = domain + '\\' + username
     return username, domain, pw
 
 
