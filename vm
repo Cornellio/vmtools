@@ -60,6 +60,8 @@ def process_args():
     parser_list.add_argument('--off', '--powered_off', dest='powered_off',
                              action='store_true', help='list VMs that are powered off')
 
+    # sub-command "get_datacenters"
+    parser_get_datacenters = subparsers.add_parser('get_datacenters')
 
     # sub-command "provision"
     parser_provision = subparsers.add_parser('provision')
@@ -94,6 +96,7 @@ def process_args():
 
     # Return args for: list subcommand
     if args.subparser_name == "list":
+        # Set a default value for vm_status in case none is provided by user
         if args.powered_on:
             vm_status = 'poweredOn'
         elif args.powered_off:
@@ -112,6 +115,13 @@ def process_args():
                 args.template_only,
                 args.detailed_list,
                 vm_status)
+
+    if args.subparser_name == "get_datacenters":
+        return (args.subparser_name,
+                args.domain,
+                args.username,
+                args.server,
+                args.verbose)
 
     # Return args for: provision subcommand
     if args.subparser_name == "provision":
@@ -271,6 +281,13 @@ def vcenter_connect(server, user, password, request,
               if mac:
                 response = mac
 
+    if request == 'get_datacenters':
+        dc = vcenter.get_datacenters().values()
+        dc_list = []
+        for x in dc:
+            dc_list.append(x)
+        response = ' \n'.join(dc_list)
+
     vcenter.disconnect
     return response
 
@@ -408,10 +425,25 @@ def power_off(domain, username, server, vm, verbose):
     vcenter_connect(server, username, password, vcenter_request, vm)
 
 
+def get_datacenters(domain, username, server, verbose):
+
+    vcenter_request = "get_datacenters"
+
+    username, domain, password = get_password(username, domain)
+    dc = vcenter_connect(server, username, password, vcenter_request)
+    print '\nData Centers in %s:\n' % (server) + dc
+
+
 def main():
     args = process_args()
 
     # Call the core functions for each subcommand
+
+    if args[0] == "get_datacenters":
+        get_datacenters(domain=args[1],
+                username=args[2],
+                server=args[3],
+                verbose=args[4])
 
     if args[0] == "list":
         vm_list(domain=args[1],
