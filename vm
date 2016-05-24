@@ -35,7 +35,7 @@ def process_args():
     parser = argparse.ArgumentParser(description='VMware command line tools')
 
     # global args
-    parser.add_argument('--domain')
+    parser.add_argument('--domain', help='Active Directory domain')
     parser.add_argument('-u', help='username', dest='username', required=True)
     parser.add_argument('-s', help='vcenter server', dest='server')
     parser.add_argument('-p', dest='password', help='vcenter password')
