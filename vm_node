@@ -288,7 +288,6 @@ def vcenter_connect(server, user, pw, request,
         response = vcenter.get_api_version()
 
     if request == "get_mac_address":
-
         vm = vcenter.get_vm_by_name(source_vm)
         net = vm.get_property('net', from_cache=False)
         if net:
@@ -428,8 +427,11 @@ def get_mac_address(domain, username, pw, server, vm, verbose):
     vcenter_request = "get_mac_address"
 
     username, pw = get_password(username, domain, pw)
-    mac_address = vcenter_connect(server, username, pw, vcenter_request, vm)
-    print mac_address
+    try:
+        mac_address = vcenter_connect(server, username, pw, vcenter_request, vm)
+        print mac_address
+    except:
+        print 'Error: Unable to get mac address for %s' % (vm)
 
 
 def power_on(domain, username, pw, server, vm, verbose):
