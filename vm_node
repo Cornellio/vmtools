@@ -441,6 +441,7 @@ def power_on(domain, username, pw, server, vm, verbose):
     username, pw = get_password(username, domain, pw)
     vcenter_connect(server, username, pw, vcenter_request, vm)
 
+
 def power_off(domain, username, pw, server, vm, verbose):
 
     vcenter_request = "power_off"
